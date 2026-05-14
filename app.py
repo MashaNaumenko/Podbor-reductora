@@ -4,14 +4,9 @@ from datetime import datetime, date
 import gspread
 import pandas as pd
 import plotly.express as px
-import plotly.graph_objects as go
 import streamlit as st
 from oauth2client.service_account import ServiceAccountCredentials
 
-
-# =========================
-# CONFIG
-# =========================
 
 st.set_page_config(
     page_title="AI Gearbox Selection Dashboard",
@@ -44,10 +39,6 @@ REQUIRED_COLUMNS = [
 ]
 
 
-# =========================
-# STYLES
-# =========================
-
 def inject_css() -> None:
     st.markdown(
         """
@@ -68,7 +59,6 @@ def inject_css() -> None:
         .main-title {
             font-size: 2.35rem;
             font-weight: 800;
-            letter-spacing: -0.04em;
             background: linear-gradient(90deg, #22d3ee, #a78bfa, #f472b6);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -93,21 +83,6 @@ def inject_css() -> None:
                 0 0 24px rgba(34, 211, 238, 0.12),
                 inset 0 0 32px rgba(168, 85, 247, 0.06);
             animation: pulseGlow 4s ease-in-out infinite;
-        }
-
-        .kpi-card:before {
-            content: "";
-            position: absolute;
-            inset: -80px;
-            background: conic-gradient(
-                from 180deg,
-                transparent,
-                rgba(34, 211, 238, 0.20),
-                rgba(168, 85, 247, 0.16),
-                transparent
-            );
-            animation: rotateGlow 8s linear infinite;
-            opacity: 0.42;
         }
 
         .kpi-content {
@@ -136,26 +111,6 @@ def inject_css() -> None:
             margin-top: 8px;
         }
 
-        .section-card {
-            padding: 20px;
-            border-radius: 24px;
-            background: rgba(15, 23, 42, 0.72);
-            border: 1px solid rgba(148, 163, 184, 0.16);
-            box-shadow: 0 0 28px rgba(15, 23, 42, 0.45);
-            margin-bottom: 18px;
-        }
-
-        div[data-testid="stMetric"] {
-            background: rgba(15, 23, 42, 0.7);
-            border-radius: 18px;
-            padding: 16px;
-        }
-
-        @keyframes rotateGlow {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
         @keyframes pulseGlow {
             0%, 100% { box-shadow: 0 0 22px rgba(34, 211, 238, 0.10); }
             50% { box-shadow: 0 0 34px rgba(168, 85, 247, 0.20); }
@@ -165,10 +120,6 @@ def inject_css() -> None:
         unsafe_allow_html=True,
     )
 
-
-# =========================
-# DATA ACCESS
-# =========================
 
 @st.cache_resource(show_spinner=False)
 def get_gspread_client():
@@ -202,27 +153,54 @@ def load_sheet_data() -> pd.DataFrame:
     return df[REQUIRED_COLUMNS]
 
 
-# =========================
-# DATA PREP
-# =========================
-
 def prepare_data(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
-    for col in ["created_at", "logged_at", "log_date"]:
-        df[col] = pd.to_datetime(df[col], errors="coerce")
+    for col in REQUIRED_COLUMNS:
+        if col not in df.columns:
+            df[col] = None
 
-    df["confidence"] = pd.to_numeric(df["confidence"], errors="coerce")
-    df["execution_time_sec"] = pd.to_numeric(df["execution_time_sec"], errors="coerce")
+    # Даты
+    df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
+    df["logged_at"] = pd.to_datetime(df["logged_at"], errors="coerce")
+    df["log_date"] = pd.to_datetime(df["log_date"], errors="coerce")
 
-    df["source_channel"] = df["source_channel"].fillna("unknown").replace("", "unknown")
-    df["process_status"] = df["process_status"].fillna("unknown").replace("", "unknown")
-    df["match_type"] = df["match_type"].fillna("unknown").replace("", "unknown")
+    # Если log_date пустой, берем дату из created_at
+    df["event_datetime"] = df["log_date"].fillna(df["created_at"]).fillna(df["logged_at"])
+    df["event_date"] = df["event_datetime"].dt.date
 
-    df["event_date"] = df["log_date"].fillna(df["created_at"]).dt.date
+    # Числа
+    df["execution_time_sec"] = pd.to_numeric(df["execution_time_sec"], errors="coerce").fillna(0)
+
+    # Текстовые поля
+    text_cols = [
+        "lead_uid",
+        "source_channel",
+        "request_text",
+        "qualification_route",
+        "identification_route",
+        "rag_selection_status",
+        "match_type",
+        "selected_model",
+        "selected_brand",
+        "confidence",
+        "missing_fields",
+        "final_result",
+        "process_status",
+        "error_message",
+    ]
+
+    for col in text_cols:
+        df[col] = df[col].fillna("").astype(str).str.strip()
+
+    df["source_channel"] = df["source_channel"].replace("", "unknown")
+    df["process_status"] = df["process_status"].replace("", "unknown")
+    df["match_type"] = df["match_type"].replace("", "unknown")
+    df["confidence"] = df["confidence"].replace("", "unknown")
+
     df["has_error"] = (
-        df["error_message"].fillna("").astype(str).str.strip().ne("")
-        | df["process_status"].astype(str).str.lower().str.contains("error|failed|fail", regex=True)
+        df["error_message"].str.strip().ne("")
+        | df["process_status"].str.lower().str.contains("error|failed|fail", regex=True, na=False)
     )
 
     return df
@@ -231,11 +209,13 @@ def prepare_data(df: pd.DataFrame) -> pd.DataFrame:
 def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
     st.sidebar.markdown("## Фильтры")
 
-    min_date = df["event_date"].dropna().min()
-    max_date = df["event_date"].dropna().max()
+    valid_dates = df["event_date"].dropna()
 
-    if pd.isna(min_date) or pd.isna(max_date):
+    if valid_dates.empty:
         min_date = max_date = date.today()
+    else:
+        min_date = valid_dates.min()
+        max_date = valid_dates.max()
 
     period = st.sidebar.date_input(
         "Период",
@@ -249,30 +229,33 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
     else:
         start_date, end_date = min_date, max_date
 
+    channels_all = sorted(df["source_channel"].dropna().unique())
+    statuses_all = sorted(df["process_status"].dropna().unique())
+    match_types_all = sorted(df["match_type"].dropna().unique())
+    confidence_all = sorted(df["confidence"].dropna().unique())
+
     channels = st.sidebar.multiselect(
         "source_channel",
-        sorted(df["source_channel"].dropna().unique()),
-        default=sorted(df["source_channel"].dropna().unique()),
+        channels_all,
+        default=channels_all,
     )
 
     statuses = st.sidebar.multiselect(
         "process_status",
-        sorted(df["process_status"].dropna().unique()),
-        default=sorted(df["process_status"].dropna().unique()),
+        statuses_all,
+        default=statuses_all,
     )
 
     match_types = st.sidebar.multiselect(
         "match_type",
-        sorted(df["match_type"].dropna().unique()),
-        default=sorted(df["match_type"].dropna().unique()),
+        match_types_all,
+        default=match_types_all,
     )
 
-    confidence_range = st.sidebar.slider(
+    confidence_values = st.sidebar.multiselect(
         "confidence",
-        min_value=0.0,
-        max_value=1.0,
-        value=(0.0, 1.0),
-        step=0.01,
+        confidence_all,
+        default=confidence_all,
     )
 
     filtered = df[
@@ -281,26 +264,15 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
         & (df["source_channel"].isin(channels))
         & (df["process_status"].isin(statuses))
         & (df["match_type"].isin(match_types))
-        & (
-            df["confidence"].between(confidence_range[0], confidence_range[1])
-            | df["confidence"].isna()
-        )
+        & (df["confidence"].isin(confidence_values))
     ]
 
     return filtered
 
 
-# =========================
-# UI HELPERS
-# =========================
-
-def plotly_template():
-    return "plotly_dark"
-
-
 def update_plot_layout(fig):
     fig.update_layout(
-        template=plotly_template(),
+        template="plotly_dark",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(2,6,23,0.45)",
         font=dict(color="#E5E7EB"),
@@ -334,7 +306,7 @@ def kpi_card(label: str, value: str, hint: str = "") -> None:
 
 def format_seconds(value: float) -> str:
     if pd.isna(value):
-        return "0.0 сек"
+        return "0.00 сек"
     return f"{value:.2f} сек"
 
 
@@ -350,10 +322,6 @@ def render_header() -> None:
     )
 
 
-# =========================
-# DASHBOARD BLOCKS
-# =========================
-
 def render_kpis(df: pd.DataFrame) -> None:
     total_requests = len(df)
     avg_time = df["execution_time_sec"].mean()
@@ -361,24 +329,22 @@ def render_kpis(df: pd.DataFrame) -> None:
 
     exact_matches = int(
         df["match_type"]
-        .astype(str)
         .str.lower()
-        .isin(["exact", "exact_match", "точное совпадение", "точный"])
+        .isin(["exact", "exact_match", "exact_match_found", "точное совпадение", "точный"])
         .sum()
     )
 
     analog_matches = int(
         df["match_type"]
-        .astype(str)
         .str.lower()
-        .str.contains("analog|анал", regex=True)
+        .str.contains("analog|analogue|анал", regex=True, na=False)
         .sum()
     )
 
     cols = st.columns(5)
 
     with cols[0]:
-        kpi_card("Всего заявок", f"{total_requests:,}".replace(",", " "), "filtered leads")
+        kpi_card("Всего заявок", f"{total_requests}", "filtered leads")
     with cols[1]:
         kpi_card("Среднее время", format_seconds(avg_time), "processing latency")
     with cols[2]:
@@ -420,12 +386,15 @@ def render_charts(df: pd.DataFrame) -> None:
     left, right = st.columns(2)
 
     with left:
-        confidence_df = df.dropna(subset=["confidence"])
-        fig = px.histogram(
-            confidence_df,
+        confidence_counts = df["confidence"].value_counts().reset_index()
+        confidence_counts.columns = ["confidence", "count"]
+
+        fig = px.bar(
+            confidence_counts,
             x="confidence",
-            nbins=20,
+            y="count",
             title="Распределение confidence",
+            text_auto=True,
         )
         st.plotly_chart(update_plot_layout(fig), use_container_width=True)
 
@@ -508,8 +477,8 @@ def render_tables(df: pd.DataFrame) -> None:
     with tab3:
         problematic = df[
             df["has_error"]
-            | df["confidence"].fillna(1).lt(0.5)
-            | df["missing_fields"].fillna("").astype(str).str.strip().ne("")
+            | df["confidence"].str.lower().isin(["low", "низкая"])
+            | df["missing_fields"].str.strip().ne("")
         ].sort_values("created_at", ascending=False).head(100)
 
         st.dataframe(problematic[problem_cols], use_container_width=True, hide_index=True)
@@ -530,7 +499,7 @@ def render_download(df: pd.DataFrame) -> None:
 def auto_refresh_control() -> None:
     st.sidebar.markdown("## Auto refresh")
 
-    enabled = st.sidebar.toggle("Включить автообновление", value=True)
+    enabled = st.sidebar.toggle("Включить автообновление", value=False)
     interval = st.sidebar.number_input(
         "Интервал, секунд",
         min_value=30,
@@ -551,12 +520,10 @@ def auto_refresh_control() -> None:
             height=0,
         )
 
-    st.sidebar.caption(f"Последнее обновление: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    st.sidebar.caption(
+        f"Последнее обновление: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+    )
 
-
-# =========================
-# MAIN
-# =========================
 
 def main() -> None:
     inject_css()
