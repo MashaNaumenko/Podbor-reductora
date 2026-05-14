@@ -439,7 +439,7 @@ daily["event_date"] = pd.to_datetime(daily["event_date"])
 
     left, right = st.columns(2)
 
-    with left:
+with left:
         confidence_counts = df["confidence"].value_counts().reset_index()
         confidence_counts.columns = ["confidence", "count"]
 
