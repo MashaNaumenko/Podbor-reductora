@@ -1,4 +1,3 @@
-import time
 from datetime import datetime, date
 
 import gspread
@@ -7,6 +6,10 @@ import plotly.express as px
 import streamlit as st
 from oauth2client.service_account import ServiceAccountCredentials
 
+
+# =========================
+# CONFIG
+# =========================
 
 st.set_page_config(
     page_title="AI Gearbox Selection Dashboard",
@@ -39,6 +42,10 @@ REQUIRED_COLUMNS = [
 ]
 
 
+# =========================
+# STYLES
+# =========================
+
 def inject_css() -> None:
     st.markdown(
         """
@@ -59,6 +66,7 @@ def inject_css() -> None:
         .main-title {
             font-size: 2.35rem;
             font-weight: 800;
+            letter-spacing: -0.04em;
             background: linear-gradient(90deg, #22d3ee, #a78bfa, #f472b6);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -121,6 +129,10 @@ def inject_css() -> None:
     )
 
 
+# =========================
+# GOOGLE SHEETS
+# =========================
+
 @st.cache_resource(show_spinner=False)
 def get_gspread_client():
     scope = [
@@ -129,6 +141,7 @@ def get_gspread_client():
     ]
 
     credentials_dict = dict(st.secrets["gcp_service_account"])
+
     credentials = ServiceAccountCredentials.from_json_keyfile_dict(
         credentials_dict,
         scope,
@@ -153,6 +166,10 @@ def load_sheet_data() -> pd.DataFrame:
     return df[REQUIRED_COLUMNS]
 
 
+# =========================
+# DATA PREP
+# =========================
+
 def prepare_data(df: pd.DataFrame) -> pd.DataFrame:
     df = df.copy()
 
@@ -160,17 +177,28 @@ def prepare_data(df: pd.DataFrame) -> pd.DataFrame:
         if col not in df.columns:
             df[col] = None
 
-    # Даты
+    # Даты приводим безопасно
     df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce")
     df["logged_at"] = pd.to_datetime(df["logged_at"], errors="coerce")
     df["log_date"] = pd.to_datetime(df["log_date"], errors="coerce")
 
-    # Если log_date пустой, берем дату из created_at
-    df["event_datetime"] = df["log_date"].fillna(df["created_at"]).fillna(df["logged_at"])
-    df["event_date"] = df["event_datetime"].dt.date
+    df["event_datetime"] = (
+        df["log_date"]
+        .fillna(df["created_at"])
+        .fillna(df["logged_at"])
+    )
+
+    df["event_datetime"] = pd.to_datetime(df["event_datetime"], errors="coerce")
+
+    df["event_date"] = df["event_datetime"].apply(
+        lambda x: x.date() if pd.notnull(x) else None
+    )
 
     # Числа
-    df["execution_time_sec"] = pd.to_numeric(df["execution_time_sec"], errors="coerce").fillna(0)
+    df["execution_time_sec"] = pd.to_numeric(
+        df["execution_time_sec"],
+        errors="coerce",
+    ).fillna(0)
 
     # Текстовые поля
     text_cols = [
@@ -200,7 +228,9 @@ def prepare_data(df: pd.DataFrame) -> pd.DataFrame:
 
     df["has_error"] = (
         df["error_message"].str.strip().ne("")
-        | df["process_status"].str.lower().str.contains("error|failed|fail", regex=True, na=False)
+        | df["process_status"]
+        .str.lower()
+        .str.contains("error|failed|fail", regex=True, na=False)
     )
 
     return df
@@ -270,6 +300,10 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
     return filtered
 
 
+# =========================
+# UI HELPERS
+# =========================
+
 def update_plot_layout(fig):
     fig.update_layout(
         template="plotly_dark",
@@ -322,6 +356,10 @@ def render_header() -> None:
     )
 
 
+# =========================
+# DASHBOARD
+# =========================
+
 def render_kpis(df: pd.DataFrame) -> None:
     total_requests = len(df)
     avg_time = df["execution_time_sec"].mean()
@@ -330,7 +368,13 @@ def render_kpis(df: pd.DataFrame) -> None:
     exact_matches = int(
         df["match_type"]
         .str.lower()
-        .isin(["exact", "exact_match", "exact_match_found", "точное совпадение", "точный"])
+        .isin([
+            "exact",
+            "exact_match",
+            "exact_match_found",
+            "точное совпадение",
+            "точный",
+        ])
         .sum()
     )
 
@@ -344,13 +388,17 @@ def render_kpis(df: pd.DataFrame) -> None:
     cols = st.columns(5)
 
     with cols[0]:
-        kpi_card("Всего заявок", f"{total_requests}", "filtered leads")
+        kpi_card("Всего заявок", str(total_requests), "filtered leads")
+
     with cols[1]:
         kpi_card("Среднее время", format_seconds(avg_time), "processing latency")
+
     with cols[2]:
         kpi_card("Ошибки системы", str(system_errors), "error events")
+
     with cols[3]:
         kpi_card("Точные совпадения", str(exact_matches), "exact matches")
+
     with cols[4]:
         kpi_card("Найденные аналоги", str(analog_matches), "analog matches")
 
@@ -361,7 +409,10 @@ def render_charts(df: pd.DataFrame) -> None:
     daily = (
         df.dropna(subset=["event_date"])
         .groupby("event_date", as_index=False)
-        .agg(requests=("lead_uid", "count"), errors=("has_error", "sum"))
+        .agg(
+            requests=("lead_uid", "count"),
+            errors=("has_error", "sum"),
+        )
     )
 
     with left:
@@ -500,6 +551,7 @@ def auto_refresh_control() -> None:
     st.sidebar.markdown("## Auto refresh")
 
     enabled = st.sidebar.toggle("Включить автообновление", value=False)
+
     interval = st.sidebar.number_input(
         "Интервал, секунд",
         min_value=30,
@@ -524,6 +576,10 @@ def auto_refresh_control() -> None:
         f"Последнее обновление: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
 
+
+# =========================
+# MAIN
+# =========================
 
 def main() -> None:
     inject_css()
