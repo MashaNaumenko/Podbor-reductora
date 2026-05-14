@@ -407,13 +407,16 @@ def render_charts(df: pd.DataFrame) -> None:
     left, right = st.columns(2)
 
     daily = (
-        df.dropna(subset=["event_date"])
-        .groupby("event_date", as_index=False)
-        .agg(
-            requests=("lead_uid", "count"),
-            errors=("has_error", "sum"),
-        )
+    df.dropna(subset=["event_date"])
+    .groupby("event_date")
+    .agg(
+        requests=("lead_uid", "count"),
+        errors=("has_error", "sum"),
     )
+    .reset_index()
+)
+
+daily["event_date"] = pd.to_datetime(daily["event_date"])
 
     with left:
         fig = px.area(
