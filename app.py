@@ -399,7 +399,9 @@ def render_charts(df):
             title="Заявки по дням",
             markers=True,
         )
-
+        fig.update_xaxes(
+            tickformat="%d.%m.%Y"
+        )
         st.plotly_chart(
             update_plot_layout(fig),
             use_container_width=True
@@ -413,7 +415,9 @@ def render_charts(df):
             y="errors",
             title="Ошибки по дням",
         )
-
+        fig.update_xaxes(
+            tickformat="%d.%m.%Y"
+        )
         st.plotly_chart(
             update_plot_layout(fig),
             use_container_width=True
