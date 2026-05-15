@@ -51,6 +51,27 @@ def inject_css() -> None:
             border-right: 1px solid #e2e8f0;
             box-shadow: 0 10px 30px rgba(15, 23, 42, .08);
         }
+        /* Поле interval */
+
+        .stNumberInput input {
+            background: rgba(248,250,252,.92) !important;
+            color: #0f172a !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+
+        .stNumberInput div[data-baseweb="input"] {
+            background: rgba(248,250,252,.92) !important;
+            border: 1px solid #e2e8f0 !important;
+            border-radius: 12px !important;
+        }
+
+/* Кнопки + / - */
+
+.stNumberInput button {
+    background: rgba(248,250,252,.92) !important;
+    color: #0f172a !important;
+    border: 1px solid #e2e8f0 !important;
+}
         /* Светлые select-box / multiselect */
 
         .stMultiSelect div[data-baseweb="select"] > div {
