@@ -47,9 +47,42 @@ def inject_css() -> None:
         }
 
         [data-testid="stSidebar"] {
-            background: rgba(255,255,255,.86);
+            background: rgba(255,255,255,.96);
             border-right: 1px solid #e2e8f0;
             box-shadow: 0 10px 30px rgba(15, 23, 42, .08);
+        }
+        /* Светлые select-box / multiselect */
+
+        .stMultiSelect div[data-baseweb="select"] > div {
+            background: rgba(248,250,252,.92) !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+
+        .stSelectbox div[data-baseweb="select"] > div {
+            background: rgba(248,250,252,.92) !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+
+        .stDateInput > div > div {
+            background: rgba(248,250,252,.92) !important;
+            border: 1px solid #e2e8f0 !important;
+        }
+
+/* Цвет текста */
+
+        .stMultiSelect span,
+        .stSelectbox span,
+        .stDateInput input {
+            color: #0f172a !important;
+        }
+
+/* Ось X и Y графиков */
+
+        .js-plotly-plot .plotly .xtick text,
+        .js-plotly-plot .plotly .ytick text {
+            fill: #0f172a !important;
+            color: #0f172a !important;
+            font-weight: 700 !important;
         }
 
         [data-testid="stSidebar"] * {
