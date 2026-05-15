@@ -397,7 +397,7 @@ def update_plot_layout(fig):
         template="plotly_white",
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="rgba(255,255,255,0.55)",
-        font=dict(color="#0f172a"),
+        font=dict(color="#000000", size=14),
         margin=dict(l=20, r=20, t=56, b=20),
         title=dict(font=dict(size=20, color="#0f172a")),
         legend=dict(
@@ -405,7 +405,15 @@ def update_plot_layout(fig):
             font=dict(color="#334155"),
         ),
     )
+    fig.update_xaxes(
+        tickfont=dict(color="#000000", size=13),
+        title_font=dict(color="#000000"),
+    )
 
+    fig.update_yaxes(
+        tickfont=dict(color="#000000", size=13),
+        title_font=dict(color="#000000"),
+    )
     fig.update_xaxes(
         tickformat="%d.%m.%Y",
         showgrid=True,
