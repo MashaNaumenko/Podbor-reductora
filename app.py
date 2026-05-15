@@ -310,12 +310,12 @@ def render_header():
     st.markdown(
         """
         <div class="main-title">
-            AI Gearbox Selection Dashboard
+            Мониторинг AI-системы
         </div>
 
         <div class="subtitle">
-            Мониторинг AI-системы подбора редукторов:
-            заявки, ошибки, confidence, совпадения
+            Мониторинг системы по подбору редукторов:
+            заявки, ошибки, стабильность, совпадения
             и операционные статусы.
         </div>
         """,
@@ -500,7 +500,7 @@ def render_download(df):
     csv = df.to_csv(index=False).encode("utf-8-sig")
 
     st.download_button(
-        label="⬇️ Скачать отфильтрованные данные CSV",
+        label="Скачать данные CSV",
         data=csv,
         file_name="dashboard_export.csv",
         mime="text/csv",
@@ -523,10 +523,10 @@ def auto_refresh_control():
 
     interval = st.sidebar.number_input(
         "Интервал, секунд",
-        min_value=30,
+        min_value=10,
         max_value=3600,
         value=60,
-        step=30,
+        step=10,
     )
 
     if enabled:
