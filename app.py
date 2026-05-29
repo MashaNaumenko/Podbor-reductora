@@ -643,7 +643,7 @@ def auto_refresh_control():
     )
 
     if enabled:
-    st_autorefresh(
+        st_autorefresh(
         interval=interval * 1000,
         key="dashboard_autorefresh"
     )
