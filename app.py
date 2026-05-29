@@ -298,9 +298,9 @@ def prepare_data(df: pd.DataFrame) -> pd.DataFrame:
     df["log_date"] = pd.to_datetime(df["log_date"], errors="coerce")
 
     df["event_datetime"] = (
-        df["log_date"]
+        df["logged_at"]
         .fillna(df["created_at"])
-        .fillna(df["logged_at"])
+        .fillna(df["log_date"])
     )
 
     df["event_datetime"] = pd.to_datetime(df["event_datetime"], errors="coerce")
