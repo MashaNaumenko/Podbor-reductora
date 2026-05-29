@@ -373,6 +373,7 @@ def apply_filters(df: pd.DataFrame) -> pd.DataFrame:
     period = st.sidebar.date_input(
         "Период",
         value=(min_date, max_date),
+        key="period_filter"
     )
 
     if isinstance(period, tuple) and len(period) == 2:
@@ -641,21 +642,14 @@ def auto_refresh_control():
     )
 
     if enabled:
-        st.components.v1.html(
-            f"""
-            <script>
-                setTimeout(function() {{
-                    window.parent.location.reload();
-                }}, {interval * 1000});
-            </script>
-            """,
-            height=0,
-        )
+    st_autorefresh(
+        interval=interval * 1000,
+        key="dashboard_autorefresh"
+    )
 
     st.sidebar.caption(
         f"Последнее обновление: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
     )
-
 
 def main():
     inject_css()
