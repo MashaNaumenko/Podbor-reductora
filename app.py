@@ -278,7 +278,7 @@ def get_gspread_client():
 def load_sheet_data() -> pd.DataFrame:
     client = get_gspread_client()
     spreadsheet = client.open_by_key(SHEET_ID)
-    worksheet = spreadsheet.worksheet("Лист 1")
+    worksheet = spreadsheet.worksheet("Лист1")
 
     records = worksheet.get_all_records()
     df = pd.DataFrame(records)
